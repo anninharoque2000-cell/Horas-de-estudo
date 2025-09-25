@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EstudoHero — Painel de Estudos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg: #fff7fa;
+      --rose-1: #ffeef6;
+      --rose-2: #ffd6e8;
+      --accent: #ff85b3;
+      --muted: #9b7a86;
+      --card: #ffffff;
+      --glass: rgba(255,255,255,0.6);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#fff);color:#4a2b33;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px}
+    .wrap{width:100%;max-width:1100px;background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.8));border-radius:18px;display:grid;grid-template-columns:1fr 380px;gap:22px;padding:22px;box-shadow:0 8px 30px rgba(102,43,79,0.08)}
+
+    /* Left column */
+    .left{padding:18px}
+    .card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 6px 18px rgba(162,69,108,0.04)}
+    h2{margin:0 0 8px 0;font-size:18px}
+    .sub{color:var(--muted);font-size:13px;margin-bottom:8px}
+
+    /* Chart */
+    .chart-wrap{height:300px}
+
+    /* XP bar and level */
+    .xp-row{display:flex;gap:12px;align-items:center}
+    .xp-info{flex:1}
+    .xp-bar{width:100%;background:linear-gradient(90deg,#ffe6f3,#fff2f6);height:14px;border-radius:12px;overflow:hidden}
+    .xp-fill{height:100%;background:linear-gradient(90deg,var(--accent),#ff6aa0);width:0;border-radius:12px;transition:width 800ms ease}
+    .level-badge{background:linear-gradient(180deg,#fff,#fff);padding:8px 12px;border-radius:999px;border:1px solid rgba(0,0,0,0.04);font-weight:600}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* Timer controls */
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .btn{background:var(--accent);color:white;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(255,133,179,0.28)}
+    .btn.secondary{background:#ffe6f0;color:var(--accent)}
+
+    .time-display{font-weight:700;font-size:20px;margin-top:8px}
+
+    /* Cat celebration */
+    .celebration{position:fixed;left:50%;top:18%;transform:translateX(-50%);pointer-events:none;display:none;z-index:999}
+    .cat{font-size:68px;text-shadow:0 6px 18px rgba(255,115,170,0.18);transform-origin:center;animation:pop 800ms ease}
+    @keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+    .sparkle{position:absolute;left:50%;top:10%;width:200px;height:200px;border-radius:50%;filter:blur(10px);background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0) 10%), radial-gradient(circle at 70% 70%, rgba(255,230,255,0.8), rgba(255,230,255,0) 10%);transform:translateX(-50%);opacity:0.9}
+
+    /* Prize modal */
+    .prize{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);background:var(--card);padding:18px;border-radius:14px;box-shadow:0 18px 40px rgba(120,36,82,0.12);display:none;z-index:1000}
+    .prize h3{margin:0 0 8px}
+    .prize ul{margin:0;padding-left:18px}
+
+    /* Right column */
+    .right{padding:18px}
+    .pomodoro{display:flex;flex-direction:column;gap:12px}
+    .pomodoro .clock{font-weight:700;font-size:36px;text-align:center;padding:8px}
+    .phrases{background:linear-gradient(180deg,var(--rose-1),#fff);padding:12px;border-radius:10px;font-size:14px;color:var(--muted)}
+
+    /* small utilities */
+    .row{display:flex;gap:8px;align-items:center}
+    .muted{color:var(--muted);font-size:13px}
+
+    footer{margin-top:6px;text-align:center;color:var(--muted);font-size:13px}
+    @media(max-width:900px){.wrap{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="left">
+      <div class="card">
+        <h2>Horas por dia (Seg — Sáb)</h2>
+        <div class="sub">Min 2h — Máx 10h (visualização ajustada)</div>
+        <div class="chart-wrap"><canvas id="hoursChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="xp-row">
+          <div class="xp-info">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div class="small">Nível</div>
+                <div class="level-badge" id="levelLabel">Aprendiz</div>
+              </div>
+              <div style="text-align:right">
+                <div class="small">XP total</div>
+                <div id="totalHours">0h</div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px" class="small">Progresso para próximo nível</div>
+            <div class="xp-bar" style="margin-top:8px"><div class="xp-fill" id="xpFill"></div></div>
+          </div>
+          <div style="width:120px;text-align:center">
+            <div class="small">Seu mascote</div>
+            <div style="margin-top:6px;font-size:36px" id="miniCat">🐱</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" id="startStudy">▶️ Iniciar contagem</button>
+          <button class="btn ghost" id="stopStudy">⏹️ Parar</button>
+          <button class="btn secondary" id="addManual">➕ Adicionar manual</button>
+          <button class="btn ghost" id="resetWeek">Resetar semana</button>
+        </div>
+
+        <div class="time-display" id="studyTimer">00:00:00</div>
+        <div class="muted" style="margin-top:6px">Ao parar, o tempo registrado será somado ao dia atual e refletido no gráfico.</div>
+      </div>
+
+      <div class="card">
+        <h2>Histórico rápido</h2>
+        <div class="sub">Seus últimos registros</div>
+        <div id="logList" class="muted" style="margin-top:8px">Nenhum registro ainda.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card pomodoro">
+        <h2>Pomodoro (40 / 10)</h2>
+        <div class="sub">Foco: 40 minutos — Descanso: 10 minutos</div>
+        <div class="clock" id="pomClock">40:00</div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="btn" id="pomStart">▶️ Iniciar</button>
+          <button class="btn ghost" id="pomPause">⏸️ Pausar</button>
+          <button class="btn ghost" id="pomSkip">⏭️ Pular</button>
+        </div>
+        <div class="phrases" id="phraseBox">Vamos com tudo! Uma etapa de cada vez 💪✨</div>
+      
+      <div class="card">
+        <h2>Checklist de Organização</h2>
+        <div class="sub">Adicione suas tarefas e marque quando concluir</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="taskInput" placeholder="Nova tarefa..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #ccc">
+          <button class="btn" id="addTask">➕</button>
+        </div>
+        <ul id="taskList" style="list-style:none;padding:0;margin:0"></ul>
+      </div>
+
+
+      
+      <div class="card">
+        <h2>Metas Semanais</h2>
+        <div class="sub">Defina suas metas semanais e acompanhe o progresso</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="weeklyInput" placeholder="Nova meta..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #ccc">
+          <button class="btn" id="addWeekly">➕</button>
+        </div>
+        <ul id="weeklyList" style="list-style:none;padding:0;margin:0"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Configurações rápidas</h2>
+        <div class="sub">Ajustes e preferências</div>
+        <div style="margin-top:8px" class="row">
+          <label class="small">Mostrar domingos no gráfico:</label>
+          <input type="checkbox" id="showSunday" disabled="disabled" title="Instância mínima: escondido por padrão">
+        </div>
+        <div style="margin-top:12px" class="small">Dica: saia do site e volte para testar persistência (dados guardados no seu navegador).</div>
+      </div>
+
+      <footer>Feito com carinho pra você 💖 — Teste e me diga o que quer mudar</footer>
+    </div>
+  </div>
+
+  <!-- Celebration + Prize -->
+  <div class="celebration" id="celebration">
+    <div class="sparkle"></div>
+    <div class="cat" id="celeCat">🐱✨</div>
+  </div>
+  <div class="prize" id="prizeBox">
+    <h3>Parabéns! Novo nível desbloqueado 🎉</h3>
+    <div id="prizeText">Você ganhou:</div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn" id="closePrize">Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    // --- Configs e helpers ---
+    const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb']; // sem domingo
+    const LEVELS = [
+      {name:'Aprendiz',min:0.5, max:24},    // 30min - 24h (note: store in hours; 0.5 = 30min)
+      {name:'Principiante',min:24, max:48},
+      {name:'Elite',min:48, max:96},
+      {name:'Nerd',min:96, max:134},
+      {name:'Mestre',min:134, max:195},
+      {name:'Mítico',min:195, max:350}
+    ];
+
+    // mapping: total hours
+    const STORAGE_KEY = 'estudo_hero_v1';
+    function loadState(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+      // default: 6 days array with 0
+      return {hoursPerDay: [0,0,0,0,0,0], logs: [], totalHours:0};
+    }
+    function saveState(state){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    let state = loadState();
+
+    // --- Chart ---
+    const ctx = document.getElementById('hoursChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type:'bar',
+      data:{labels:DAYS, datasets:[{label:'Horas',data:state.hoursPerDay, backgroundColor: 'rgba(255,133,179,0.9)', borderRadius:8, maxBarThickness:48}]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        scales:{
+          y:{min:2, max:10, ticks:{callback: v => v + 'h'}},
+          x:{grid:{display:false}}
+        },
+        plugins:{legend:{display:false}}
+      }
+    });
+
+    // --- UI elements ---
+    const totalHoursEl = document.getElementById('totalHours');
+    const levelLabel = document.getElementById('levelLabel');
+    const xpFill = document.getElementById('xpFill');
+    const miniCat = document.getElementById('miniCat');
+    const logList = document.getElementById('logList');
+
+    function calcTotalHours(){ return state.hoursPerDay.reduce((a,b)=>a+b,0); }
+    function updateXPUI(){
+  totalHoursEl.textContent = Math.round(state.totalHours*100)/100 + 'h';
+  // encontrar nível
+  let lvl = LEVELS[0];
+  for(let i=LEVELS.length-1;i>=0;i--){
+    if(state.totalHours>=LEVELS[i].min){ 
+      lvl = LEVELS[i]; 
+      break; 
+    }
+  }
+  levelLabel.textContent = lvl.name;
+  // progresso dentro do nível
+  const range = lvl.max - lvl.min;
+  const progress = Math.max(0, Math.min(1, (state.totalHours - lvl.min) / range));
+  xpFill.style.width = (progress*100)+'%';
+  miniCat.textContent = '🐱';
+}
+
+    function updateChart(){
+      // clamp to visible range 2-10 for display only
+      const display = state.hoursPerDay.map(h => Math.max(2, Math.min(10, h)));
+      chart.data.datasets[0].data = display;
+      chart.update();
+    }
+
+    function refreshLog(){
+      if(state.logs.length===0){ logList.textContent='Nenhum registro ainda.'; return; }
+      const last = state.logs.slice(-6).reverse().map(l => `${l.date} — ${Math.round(l.hours*100)/100}h`).join('\n');
+      logList.textContent = last;
+    }
+
+    updateXPUI(); updateChart(); refreshLog(); saveState(state);
+
+    // --- Study timer (contagem bruta) ---
+let studyInterval = null;
+let studySeconds = 0;
+let startTime = null;
+const timerEl = document.getElementById('studyTimer');
+const startBtn = document.getElementById('startStudy');
+const stopBtn = document.getElementById('stopStudy');
+
+function formatHms(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+}
+
+function updateTimer() {
+  if (startTime) {
+    const now = Date.now();
+    studySeconds = Math.floor((now - startTime) / 1000);
+    timerEl.textContent = formatHms(studySeconds);
+  }
+}
+
+function startStudy() {
+  if (studyInterval) return;
+  startTime = Date.now();
+  studyInterval = setInterval(updateTimer, 1000);
+  startBtn.disabled = true;
+}
+
+function stopStudy() {
+  if (!studyInterval) return;
+  clearInterval(studyInterval);
+  studyInterval = null;
+  startBtn.disabled = false;
+
+  // calcular tempo final
+  updateTimer();
+  const hours = studySeconds / 3600;
+
+  const today = new Date();
+  const wd = today.getDay(); // 0 = domingo
+  const idx = (wd === 0) ? 0 : (wd - 1); // map seg–sáb
+  state.hoursPerDay[idx] = Math.round((state.hoursPerDay[idx] + hours) * 100) / 100;
+
+  state.totalHours = Math.round((state.totalHours + hours) * 100) / 100;
+  state.logs.push({ date: today.toLocaleDateString(), hours: Math.round(hours * 100) / 100 });
+  saveState(state);
+
+  studySeconds = 0;
+  startTime = null;
+  timerEl.textContent = '00:00:00';
+
+  updateXPUI();
+  updateChart();
+  refreshLog();
+  checkLevelUpAndCelebrate();
+}
+
+startBtn.addEventListener('click', () => { startStudy(); });
+stopBtn.addEventListener('click', () => { stopStudy(); });
+
+    document.getElementById('addManual').addEventListener('click', ()=>{
+      const val = prompt('Adicionar horas manualmente (ex: 1.5 para 1h30m):');
+      if(!val) return; const h = parseFloat(val.replace(',', '.'));
+      if(isNaN(h) || h<=0){ alert('Valor inválido.'); return; }
+      const today = new Date(); const wd = today.getDay(); const idx = (wd===0)?0:(wd-1);
+      state.hoursPerDay[idx] = Math.round((state.hoursPerDay[idx]+h)*100)/100;
+      state.totalHours = Math.round((state.totalHours + h) * 100) / 100;
+      state.logs.push({date: today.toLocaleDateString(), hours:Math.round(h*100)/100}); saveState(state);
+      updateXPUI(); updateChart(); refreshLog(); checkLevelUpAndCelebrate();
+    });
+
+    document.getElementById('resetWeek').addEventListener('click', ()=>{
+  if(!confirm('Resetar os dados da semana? O XP e níveis continuarão salvos.')) return;
+  state.hoursPerDay = [0,0,0,0,0,0]; // só zera gráfico semanal
+  saveState(state);
+  updateChart();
+  refreshLog();
+});
+
+    // level-up detection
+    let lastLevelName = (()=>{ const t = calcTotalHours(); for(let i=LEVELS.length-1;i>=0;i--){ if(t>=LEVELS[i].min) return LEVELS[i].name; } return LEVELS[0].name; })();
+    function checkLevelUpAndCelebrate(){ const total = calcTotalHours(); let newLevel = LEVELS[0]; for(let i=LEVELS.length-1;i>=0;i--){ if(total>=LEVELS[i].min) { newLevel = LEVELS[i]; break; }}
+      if(newLevel.name !== lastLevelName){ // leveled up
+        lastLevelName = newLevel.name; showCelebration(newLevel.name); }
+    }
+
+    function showCelebration(levelName){ const cele = document.getElementById('celebration'); const prizeBox = document.getElementById('prizeBox'); const prizeText = document.getElementById('prizeText');
+      // choose some prizes based on level
+      const prizeMap = {
+        'Aprendiz': ['Sticker virtual colecionável 💌','Música favorita de 30min como trilha sonora de estudo 🎧'],
+        'Principiante': ['Um wallpaper personalizado para tela de estudo 🖼️','1 hora de pausa-propaganda (se presente) ☕'],
+        'Elite': ['Playlist exclusiva de foco 🎼','Um mini-desafio com recompensa (docinho!) 🍪'],
+        'Nerd': ['Tema de gato animado desbloqueado 🐱','Um dia de micro-recompensas: 3 pausas curtas extras 🎟️'],
+        'Mestre': ['Pack de stickers animados + wallpaper ✨','Um presente surpresa (você escolhe!) 🎁'],
+        'Mítico': ['Badge Mítico para seu perfil ✨👑','Um grande mimo: 2 horas de autocuidado programadas 🛁']
+      };
+      const prizes = prizeMap[levelName] || ['Celebração! 🎉'];
+      prizeText.innerHTML = '<ul>' + prizes.map(p=>'<li>'+p+'</li>').join('') + '</ul>';
+      cele.style.display='block'; prizeBox.style.display='block';
+      setTimeout(()=>{ cele.style.display='none'; }, 2200);
+    }
+
+    document.getElementById('closePrize').addEventListener('click', ()=>{ document.getElementById('prizeBox').style.display='none'; });
+
+    // --- Pomodoro ---
+    const phraseBox = document.getElementById('phraseBox');
+    const phrases = [
+      'Foca só: pequenas vitórias somam muito! 🌟',
+      'Você tá arrasando — mais 40 minutos e pronto! 💪',
+      'Cada revisão te deixa mais perto da vaga. Respira e vai! 🌬️',
+      'Lembre-se: consistência > intensidade. Continua! ✨',
+      'Visualiza seu objetivo — você merece isso 💖'
+    ];
+    let phraseIdx = Math.floor(Math.random()*phrases.length);
+    phraseBox.textContent = phrases[phraseIdx];
+
+    let pomMode = 'focus'; // 'focus' or 'break'
+    let pomRemaining = 40*60; // 40 minutes
+    let pomTimer = null;
+    const pomClock = document.getElementById('pomClock');
+    function formatMmSs(s){ const m=Math.floor(s/60); const ss=s%60; return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); }
+    function updatePomUI(){ pomClock.textContent = formatMmSs(pomRemaining); }
+    updatePomUI();
+
+    document.getElementById('pomStart').addEventListener('click', ()=>{
+      if(pomTimer) return; pomTimer = setInterval(()=>{
+        pomRemaining--; if(pomRemaining<=0){
+          clearInterval(pomTimer); pomTimer=null; // switch
+          if(pomMode==='focus'){
+            // finish focus: add this 40 minutes to study as 'bruto' automatic small credit
+            // We won't auto-add full 40 to hoursPerDay automatically to avoid double counting; we just notify
+            phraseBox.textContent = 'Parabéns pelo foco! Hora de descansar 10 min ✨';
+            pomMode='break'; pomRemaining = 10*60; // 10 min
+            // change phrase
+            phraseIdx = (phraseIdx+1)%phrases.length; setTimeout(()=>phraseBox.textContent = phrases[phraseIdx],800);
+          } else {
+            phraseBox.textContent = 'Pausa encerrada — bora mais uma rodada! 💪';
+            pomMode='focus'; pomRemaining = 40*60; phraseIdx = (phraseIdx+1)%phrases.length; setTimeout(()=>phraseBox.textContent = phrases[phraseIdx],800);
+          }
+          updatePomUI();
+        } else { updatePomUI(); }
+      },1000);
+    });
+    document.getElementById('pomPause').addEventListener('click', ()=>{ if(pomTimer) { clearInterval(pomTimer); pomTimer=null; } else { document.getElementById('pomStart').click(); } });
+    document.getElementById('pomSkip').addEventListener('click', ()=>{
+      if(pomTimer){ clearInterval(pomTimer); pomTimer=null; }
+      // skip to next
+      if(pomMode==='focus'){ pomMode='break'; pomRemaining=10*60; phraseBox.textContent='Pular para descanso!'; }
+      else { pomMode='focus'; pomRemaining=40*60; phraseBox.textContent='Pular para foco!'; }
+      updatePomUI();
+    });
+
+    // --- small niceties: keyboard shortcuts ---
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === ' '){
+        // permitir espaço dentro de inputs e textarea
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          if(studyInterval) stopStudy(); else startStudy();
+        }
+      }
+      if(e.key === 'p') document.getElementById('pomStart').click();
+    });
+
+    // Inform the user about today's index mapping
+
+
+// --- Checklist ---
+const taskInput = document.getElementById('taskInput');
+const addTaskBtn = document.getElementById('addTask');
+const taskList = document.getElementById('taskList');
+
+function saveTasks() {
+  const tasks = [];
+  taskList.querySelectorAll('li').forEach(li => {
+    const checkbox = li.querySelector('input[type=checkbox]');
+    tasks.push({
+      text: li.querySelector('span').textContent,
+      done: checkbox.checked
+    });
+  });
+  localStorage.setItem('checklistTasks', JSON.stringify(tasks));
+}
+
+function loadTasks() {
+  const saved = JSON.parse(localStorage.getItem('checklistTasks') || '[]');
+  saved.forEach(t => addTask(t.text, t.done));
+}
+
+function addTask(text, done=false) {
+  const li = document.createElement('li');
+  li.style.display = 'flex';
+  li.style.alignItems = 'center';
+  li.style.justifyContent = 'space-between';
+  li.style.marginBottom = '6px';
+
+  const leftDiv = document.createElement('div');
+  leftDiv.style.display = 'flex';
+  leftDiv.style.alignItems = 'center';
+  leftDiv.style.gap = '8px';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = done;
+
+  const span = document.createElement('span');
+  span.textContent = text;
+  if (done) { span.style.textDecoration = 'line-through'; span.style.color = '#999'; }
+
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) {
+      span.style.textDecoration = 'line-through';
+      span.style.color = '#999';
+    } else {
+      span.style.textDecoration = 'none';
+      span.style.color = '#000';
+    }
+    saveTasks();
+  });
+
+  leftDiv.appendChild(checkbox);
+  leftDiv.appendChild(span);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '❌';
+  delBtn.className = 'btn ghost';
+  delBtn.style.padding = '4px 8px';
+  delBtn.addEventListener('click', () => {
+    li.remove();
+    saveTasks();
+  });
+
+  li.appendChild(leftDiv);
+  li.appendChild(delBtn);
+  taskList.appendChild(li);
+  saveTasks();
+}
+
+addTaskBtn.addEventListener('click', () => {
+  const text = taskInput.value.trim();
+  if (!text) return;
+  addTask(text);
+  taskInput.value = '';
+});
+
+// Permitir Enter para adicionar tarefa
+taskInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addTaskBtn.click();
+  }
+});
+
+loadTasks();
+
+
+    // (no UI) -- handled when adding hours/stop\n
+
+// --- Histórico por semana (soma total) ---
+function refreshLog(){
+  if(state.logs.length === 0){ 
+    logList.textContent = 'Nenhum registro ainda.'; 
+    return; 
+  }
+  const weekly = {};
+  state.logs.forEach(l => {
+    const d = new Date(l.date);
+    const firstDayOfYear = new Date(d.getFullYear(),0,1);
+    const pastDays = Math.floor((d - firstDayOfYear) / 86400000);
+    const week = Math.ceil((pastDays + firstDayOfYear.getDay()+1)/7);
+    const key = `${d.getFullYear()}-S${week}`;
+    weekly[key] = (weekly[key] || 0) + l.hours;
+  });
+  const entries = Object.entries(weekly).slice(-6).reverse();
+  logList.textContent = entries.map(([sem, h]) => `${sem}: ${Math.round(h*100)/100}h`).join('\n');
+}
+
+
+// --- Weekly Checklist ---
+const weeklyInput = document.getElementById('weeklyInput');
+const addWeeklyBtn = document.getElementById('addWeekly');
+const weeklyList = document.getElementById('weeklyList');
+
+function saveWeekly() {
+  const tasks = [];
+  weeklyList.querySelectorAll('li').forEach(li => {
+    const checkbox = li.querySelector('input[type=checkbox]');
+    tasks.push({
+      text: li.querySelector('span').textContent,
+      done: checkbox.checked
+    });
+  });
+  localStorage.setItem('weeklyTasks', JSON.stringify(tasks));
+}
+
+function loadWeekly() {
+  const saved = JSON.parse(localStorage.getItem('weeklyTasks') || '[]');
+  saved.forEach(t => addWeekly(t.text, t.done));
+}
+
+function addWeekly(text, done=false) {
+  const li = document.createElement('li');
+  li.style.display = 'flex';
+  li.style.alignItems = 'center';
+  li.style.justifyContent = 'space-between';
+  li.style.marginBottom = '6px';
+
+  const leftDiv = document.createElement('div');
+  leftDiv.style.display = 'flex';
+  leftDiv.style.alignItems = 'center';
+  leftDiv.style.gap = '8px';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = done;
+
+  const span = document.createElement('span');
+  span.textContent = text;
+  if (done) { span.style.textDecoration = 'line-through'; span.style.color = '#999'; }
+
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) {
+      span.style.textDecoration = 'line-through';
+      span.style.color = '#999';
+    } else {
+      span.style.textDecoration = 'none';
+      span.style.color = '#000';
+    }
+    saveWeekly();
+  });
+
+  leftDiv.appendChild(checkbox);
+  leftDiv.appendChild(span);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '❌';
+  delBtn.className = 'btn ghost';
+  delBtn.style.padding = '4px 8px';
+  delBtn.addEventListener('click', () => {
+    li.remove();
+    saveWeekly();
+  });
+
+  li.appendChild(leftDiv);
+  li.appendChild(delBtn);
+  weeklyList.appendChild(li);
+  saveWeekly();
+}
+
+addWeeklyBtn.addEventListener('click', () => {
+  const text = weeklyInput.value.trim();
+  if (!text) return;
+  addWeekly(text);
+  weeklyInput.value = '';
+});
+
+// Enter para adicionar
+weeklyInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addWeeklyBtn.click();
+  }
+});
+
+loadWeekly();
+
+// --- Marcar dia atual no gráfico ---
+function addTodayLine(){
+  const today = new Date();
+  const wd = today.getDay(); // 0 = domingo
+  const idx = (wd===0)?0:(wd-1);
+
+  chart.options.plugins.annotation = {
+    annotations: {
+      todayLine: {
+        type: 'line',
+        xMin: idx,
+        xMax: idx,
+        borderColor: '#ff4d88',
+        borderWidth: 2,
+        label: {
+          content: today.toLocaleDateString(),
+          enabled: true,
+          position: 'end'
+        }
+      }
+    }
+  };
+  chart.update();
+}
+addTodayLine();
+
+
+  </script>
+</body>
+</html>
